@@ -4,9 +4,9 @@
 # all the opt in the metric needs to be done in cpu
 
 # objectve: cuda vector
-function ap_objective(ps::CuArrays.CuVector, y::CuArrays.CuVector, pm::PerformanceMetric; args...)
-    psc = CuArrays.collect(ps)    # to cpu
-    yc = CuArrays.collect(y)      # to cpu
+function ap_objective(ps::CUDA.CuVector, y::CUDA.CuVector, pm::PerformanceMetric; args...)
+    psc = CUDA.collect(ps)    # to cpu
+    yc = CUDA.collect(y)      # to cpu
 
     obj, _ = objective(pm, psc, yc; args...)
     obj = obj + dot(psc, yc)
@@ -14,14 +14,13 @@ function ap_objective(ps::CuArrays.CuVector, y::CuArrays.CuVector, pm::Performan
 end
 
 # custom gradient
-@adjoint function ap_objective(ps::CuArrays.CuVector, y::CuArrays.CuVector, pm::PerformanceMetric; args...)
-    psc = CuArrays.collect(ps)    # to cpu
-    yc = CuArrays.collect(y)      # to cpu
+@adjoint function ap_objective(ps::CUDA.CuVector, y::CUDA.CuVector, pm::PerformanceMetric; args...)
+    psc = CUDA.collect(ps)    # to cpu
+    yc = CUDA.collect(y)      # to cpu
 
     obj, q = objective(pm, psc, yc; args...)
     obj = obj + dot(psc, yc)
-    
-    grad = CuArrays.cu(q - yc)   # to cuda
+
+    grad = CUDA.cu(q - yc)   # to cuda
     return -obj, Δ -> (Δ * grad, nothing, nothing)
 end
-

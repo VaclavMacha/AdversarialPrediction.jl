@@ -3,22 +3,22 @@ mutable struct MetricData{TE <: CM_Expression, TT <: Tuple}
     metric_expr::TE                 # expression defined by the metric
     constraint_list::TT    # list of constraints expression
     multiplier_pq::ConstantOverPQ
-    
+
     B_list::Vector{Matrix{Float32}}
     c_list::Vector{Float32}
     tau_list::Vector{Float32}
 
     # default values
     MetricData() = new{EXPR_UnaryIdentity,Tuple{}}(
-        EXPR_UnaryIdentity(0f0), tuple(), ConstantOverPQ(), 
+        EXPR_UnaryIdentity(0f0), tuple(), ConstantOverPQ(),
         Vector{Matrix{Float32}}(), Vector{Float32}(), Vector{Float32}())
 
     MetricData(metric_expr, constraint_list) = new{typeof(metric_expr),typeof(constraint_list)}(
-        metric_expr, constraint_list, ConstantOverPQ(), 
+        metric_expr, constraint_list, ConstantOverPQ(),
         Vector{Matrix{Float32}}(), Vector{Float32}(), Vector{Float32}())
 
     MetricData(metric_expr, constraint_list, multiplier_pq) = new{typeof(metric_expr),typeof(constraint_list)}(
-        metric_expr, constraint_list, multiplier_pq, 
+        metric_expr, constraint_list, multiplier_pq,
         Vector{Matrix{Float32}}(), Vector{Float32}(), Vector{Float32}())
 end
 
@@ -27,18 +27,18 @@ mutable struct OptData
     # n sample
     n::Int
 
-    # f(AQB + QC +D) + <Q,E> + ct     
-    A::Matrix{Float32}                 
+    # f(AQB + QC +D) + <Q,E> + ct
+    A::Matrix{Float32}
     B::Matrix{Float32}
     C::Matrix{Float32}
-    D::Matrix{Float32}                 
+    D::Matrix{Float32}
     E::Matrix{Float32}
     ct::Float32             # constant
 
     # stored eigen decomposition matrix
-    CIinv::Matrix{Float32} 
+    CIinv::Matrix{Float32}
     BC_Cinv::Matrix{Float32}
-    UA::Matrix{Float32}     
+    UA::Matrix{Float32}
     UBC::Matrix{Float32}
     UAinv::Matrix{Float32}
     UBCinv::Matrix{Float32}
@@ -47,7 +47,7 @@ mutable struct OptData
     function OptData()
         MO = zeros(Float32, 0, 0)
         new(0, MO, MO, MO, MO, MO, 0f0, MO, MO, MO, MO, MO, MO, MO)
-    end 
+    end
 
     function OptData(n, A, B, C, D, E, ct, CIinv, BC_Cinv, UA, UBC, UAInv, UBCinv, sabc1)
         new(n, A, B, C, D, E, ct, CIinv, BC_Cinv, UA, UBC, UAInv, UBCinv, sabc1)
@@ -77,7 +77,7 @@ macro metric(name)
             data::T
             opt_data::OptData
 
-            function $name() 
+            function $name()
                 info, data = initialize($name)
                 new{typeof(data)}(info, data, OptData())
             end
@@ -96,13 +96,13 @@ macro metric(name, args...)
             opt_data::OptData
             $([arg for arg in args]...)
 
-            function $name($([arg for arg in args]...)) 
+            function $name($([arg for arg in args]...))
                 info, data = initialize($name, $([arg for arg in args]...))
                 new{typeof(data)}(info, data, OptData(), $([arg for arg in args]...))
             end
         end
 
-        function Base.show(io::IO, x::$(esc(name))) 
+        function Base.show(io::IO, x::$(esc(name)))
             print(io, string(typeof(x).name, "(", $(:(x.$(args[1]))),
                 $([:("," * string(x.$(args[2]))) for i = 2:length(args)]...)),
                 ")" )
@@ -114,11 +114,11 @@ end
 ### METRIC: Internal functions ###
 
 # enforcing special cases
-function special_case_positive!(pm::PerformanceMetric) 
+function special_case_positive!(pm::PerformanceMetric)
     pm.info.special_case_positive = true
 end
 
-function special_case_negative!(pm::PerformanceMetric) 
+function special_case_negative!(pm::PerformanceMetric)
     pm.info.special_case_negative = true
 end
 
@@ -157,7 +157,7 @@ function list_constraints(::Nothing)
 end
 
 
-# initialize metrics based on the definition 
+# initialize metrics based on the definition
 function initialize(pm_type::Type{<:PerformanceMetric}, args...)
     # parse definition
     CM = ConfusionMatrix()
@@ -165,6 +165,8 @@ function initialize(pm_type::Type{<:PerformanceMetric}, args...)
 
     # gather infos
     info = MetricInfo()
+    metric_expr.info.depends_cell_cm = true # fix
+
     info.valid = metric_expr.info.is_linear_tp_tn && metric_expr.info.depends_cell_cm
     info.needs_adv_sum_marg = metric_expr.info.needs_adv_sum_marg
     info.needs_pred_sum_marg = metric_expr.info.needs_pred_sum_marg
@@ -200,7 +202,7 @@ function compute_metric(pm::PerformanceMetric, yhat::AbstractVector{<:Number}, y
             return 0f0
         end
     end
-    
+
     if pm.info.special_case_negative
         if sum(y .== 1) == length(y) && sum(yhat .== 1) == length(yhat)
             return 1f0
@@ -237,7 +239,7 @@ function compute_constraints(pm::PerformanceMetric, yhat::AbstractVector{<:Numbe
                 vals[ics] = 0f0
             end
         end
-        
+
         if pm.info.cs_special_case_negative_list[ics]
             if sum(y .== 1) == length(y) && sum(yhat .== 1) == length(yhat)
                 vals[ics] = 1f0
@@ -250,7 +252,7 @@ function compute_constraints(pm::PerformanceMetric, yhat::AbstractVector{<:Numbe
 
         cs_expr = pm.data.constraint_list[ics]
         lhs_expr = cs_expr.expr     # left hand side of the expr >= tau
-        
+
         vals[ics] = compute_value(lhs_expr, Cval) ::Float32
 
     end
@@ -273,7 +275,7 @@ end
 
 function compute_admm_matrices!(pm::PerformanceMetric, n)
     multiplier_pq = pm.data.multiplier_pq
-    info = pm.info 
+    info = pm.info
 
     ### special case positive only, for now
     ks = 1:n
@@ -295,7 +297,7 @@ function compute_admm_matrices!(pm::PerformanceMetric, n)
 
     # special case negative modify M
     if info.special_case_negative
-        if !isnothing(multiplier_pq.cPQ) 
+        if !isnothing(multiplier_pq.cPQ)
             multiplier_pq.cPQ[n+1, :] .= 0f0
             multiplier_pq.cPQ[:, n+1] .= 0f0
             multiplier_pq.cPQ[n+1, n+1] = 1f0
@@ -308,20 +310,20 @@ function compute_admm_matrices!(pm::PerformanceMetric, n)
     end
 
 
-    # compute matrices 
-    if !isnothing(multiplier_pq.cPQ) 
+    # compute matrices
+    if !isnothing(multiplier_pq.cPQ)
         C += multiplier_pq.cPQ[idx, idx]'
     end
-    if !isnothing(multiplier_pq.cPQ0) 
+    if !isnothing(multiplier_pq.cPQ0)
         C -= multiplier_pq.cPQ0[idx, idx]'
         B += IK * multiplier_pq.cPQ0[idx, idx]'
     end
-   
-    if !isnothing(multiplier_pq.cP0Q) 
+
+    if !isnothing(multiplier_pq.cP0Q)
         C -= multiplier_pq.cP0Q[idx, idx]'
         B += multiplier_pq.cPQ0[idx, idx]' * IK
     end
-    if !isnothing(multiplier_pq.cP0Q0) 
+    if !isnothing(multiplier_pq.cP0Q0)
         MP0Q0 = multiplier_pq.cP0Q0
         C += MP0Q0[idx, idx]'
         B += n * IK * MP0Q0[idx, idx]' * IK  -  MP0Q0[idx, idx]' * IK  -  IK * MP0Q0[idx, idx]'
@@ -339,7 +341,7 @@ function compute_admm_matrices!(pm::PerformanceMetric, n)
 
     if !isnothing(multiplier_pq.c)
         B += IK * multiplier_pq.c[idx, idx]' * IK
-        
+
         if !info.special_case_positive
             B -= IK * ones(n) * multiplier_pq.c[idx, 1]' * IK  +  IK * multiplier_pq.c[1, idx] * ones(n)' * IK
             D += ones(n) * multiplier_pq.c[idx, 1]' * IK
@@ -348,18 +350,18 @@ function compute_admm_matrices!(pm::PerformanceMetric, n)
             mult_u0v0 += multiplier_pq.c[1, 1]
         end
     end
-    
+
 
     if info.special_case_positive
         B += IK * ones(n,n) * IK
         D -= ones(n,n) * IK
         E -= ones(n,n) * IK
-        ct = 1f0    
+        ct = 1f0
     else
         B += IK * ones(n,n) * IK * mult_u0v0
         D -= ones(n,n) * IK * mult_u0v0
         E -= ones(n,n) * IK * mult_u0v0
-        ct = mult_u0v0    
+        ct = mult_u0v0
     end
 
 
@@ -388,7 +390,7 @@ function compute_admm_matrices!(pm::PerformanceMetric, n)
 
     # eugen dec for A
     sa, UA = eigen(Symmetric(A))
-    
+
     # sa * sbc' + 1
     sabc1 = (sa * sbc' .+ 1)
 
@@ -404,14 +406,14 @@ function compute_admm_matrices!(pm::PerformanceMetric, n)
 end
 
 # compute grad p from scratch
-function compute_grad_p(Q::AbstractMatrix, multiplier_pq::ConstantOverPQ, info::MetricInfo) 
+function compute_grad_p(Q::AbstractMatrix, multiplier_pq::ConstantOverPQ, info::MetricInfo)
     n = size(Q,1)
-    
+
     # compute Q(zerovec)
     ks = 1:n
     qsum_zero = (1 - sum(Q ./ ks'))
     q_zerovec = qsum_zero .* ones(Float32, n)
-   
+
     # compute Q0
     qsum = vec(sum(Q ./ ks', dims = 1))
     Q0 = sum(Q ./ ks', dims = 1) .- Q
@@ -446,17 +448,17 @@ function compute_grad_p(Q::AbstractMatrix, multiplier_pq::ConstantOverPQ, info::
     dpsum_0k = qsum_0k * 0f0
 
     # collect for regular idx
-    if !isnothing(multiplier_pq.cPQ) 
+    if !isnothing(multiplier_pq.cPQ)
         dP_0k[idn, idx] += Q_0k[idn, idx] * multiplier_pq.cPQ[idx, idx]'
     end
-    if !isnothing(multiplier_pq.cPQ0) 
+    if !isnothing(multiplier_pq.cPQ0)
         dP_0k[idn, idx] += Q0_0k[idn, idx] * multiplier_pq.cPQ0[idx, idx]'
     end
-   
-    if !isnothing(multiplier_pq.cP0Q) 
+
+    if !isnothing(multiplier_pq.cP0Q)
         dP0_0k[idn, idx] += Q_0k[idn, idx] * multiplier_pq.cP0Q[idx, idx]'
     end
-    if !isnothing(multiplier_pq.cP0Q0) 
+    if !isnothing(multiplier_pq.cP0Q0)
         dP0_0k[idn, idx] += Q0_0k[idn, idx] * multiplier_pq.cP0Q0[idx, idx]'
     end
 
@@ -474,7 +476,7 @@ function compute_grad_p(Q::AbstractMatrix, multiplier_pq::ConstantOverPQ, info::
     dP += sum(dP0 ./ ks', dims = 1) .- dP0
 
     # transform dpsum as dp
-    dP .+= (dpsum ./ ks)' 
+    dP .+= (dpsum ./ ks)'
 
     # zerovec cases
     if info.special_case_positive
@@ -493,7 +495,7 @@ function compute_grad_p(Q::AbstractMatrix, multiplier_pq::ConstantOverPQ, info::
     dP .+= (-(sum(dp_zerovec)) ./ ks')
 
     # gather constants from (1 - P(sum not 0)) (1 - Q(sum not 0)) if special case positive or
-    # gather constants from (1 - P(sum not 0)) 
+    # gather constants from (1 - P(sum not 0))
     const_p = sum(dp_zerovec)
 
     return dP, const_p
@@ -501,12 +503,12 @@ end
 
 
 # use the stored matric calculation instead
-function compute_grad_p(pm::PerformanceMetric, Q::AbstractMatrix) 
+function compute_grad_p(pm::PerformanceMetric, Q::AbstractMatrix)
     # get stored matrices
     od = pm.opt_data
-    A = od.A; B = od.B; C = od.C; D = od.D; E = od.E; ct = od.ct; 
+    A = od.A; B = od.B; C = od.C; D = od.D; E = od.E; ct = od.ct;
     dP = A * Q * B + Q * C + D
-    const_p = sum(Q .* E) + ct 
+    const_p = sum(Q .* E) + ct
 
     return dP, const_p
 end
@@ -519,7 +521,7 @@ function generate_constraints_on_p!(pm::PerformanceMetric, y::AbstractVector)
     y_int = Int.(y)
     k = sum(y_int .== 1)
     Q = zeros(Float32, n, n)
-    if k > 0 
+    if k > 0
         Q[:, k] = y
     end
 
@@ -571,15 +573,15 @@ function obj_admm_q(Q, A, B, C, D, E, ct)
 end
 
 
-function solve_admm_q(pm::PerformanceMetric, PSI::AbstractMatrix, prox_function::Function; 
-    rho = 1.0, max_iter = 100) 
+function solve_admm_q(pm::PerformanceMetric, PSI::AbstractMatrix, prox_function::Function;
+    rho = 1.0, max_iter = 100)
 
     n = size(PSI, 1)
     ks = 1:n
 
     # get stored matrices
     od = pm.opt_data
-    A = od.A; B = od.B; C = od.C; D = od.D; E = od.E; ct = od.ct; 
+    A = od.A; B = od.B; C = od.C; D = od.D; E = od.E; ct = od.ct;
     CIinv = od.CIinv; BC_Cinv = od.BC_Cinv
     UA = od.UA; UBC = od.UBC; UAinv = od.UAinv; UBCinv = od.UBCinv; sabc1 = od.sabc1
 
@@ -594,7 +596,7 @@ function solve_admm_q(pm::PerformanceMetric, PSI::AbstractMatrix, prox_function:
 
     # resetting the storage in the LBFGS for marginal projection
     reset_projection_storage()
-    
+
     it = 1
     while true
 
@@ -624,7 +626,7 @@ function solve_admm_q(pm::PerformanceMetric, PSI::AbstractMatrix, prox_function:
     end
 
     obj = obj_admm_q(Q, A, B, C, D, EP, ct)
-   
+
     return Float32.(Q), Float32(obj), it
 end
 
@@ -644,13 +646,13 @@ function objective(pm::PerformanceMetric, psi::AbstractVector, y::AbstractVector
 
     n = length(psi)
 
-    # compute stored multipliers and matrices 
+    # compute stored multipliers and matrices
     if all_nothing(pm.data.multiplier_pq) || pm.opt_data.n != n
         compute_multipliers!(pm, n)
     end
     if pm.opt_data.n != n
         compute_admm_matrices!(pm, n)
-    end    
+    end
 
 
     if pm.info.n_constraints == 0
@@ -659,12 +661,10 @@ function objective(pm::PerformanceMetric, psi::AbstractVector, y::AbstractVector
         # update metric constraints based on y
         generate_constraints_on_p!(pm, y)
         prox_function(A, rho; args...) = prox_max_sumlargest_with_constraint(
-            A, rho, pm.data.B_list, pm.data.c_list, pm.data.tau_list; args...)   
+            A, rho, pm.data.B_list, pm.data.c_list, pm.data.tau_list; args...)
     end
 
     q, obj = solve_admm_q(pm, psi, prox_function; args...)
 
     return obj, q
 end
-
-
